@@ -1,0 +1,110 @@
+import speech_recognition as sr
+import pyttsx3
+import pywhatkit
+import datetime
+import requests
+import json
+
+# Inicializa o motor de texto para fala
+engine = pyttsx3.init()
+
+# Função para o assistente falar
+def falar(texto):
+    engine.say(texto)
+    engine.runAndWait()
+
+# Função para ouvir comandos
+def ouvir_comando():
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        print("Ouvindo...")
+        recognizer.adjust_for_ambient_noise(source)
+        try:
+            audio = recognizer.listen(source)
+            comando = recognizer.recognize_google(audio, language="pt-BR")
+            comando = comando.lower()
+            print(f"Você disse: {comando}")
+            return comando
+        except sr.UnknownValueError:
+            falar("Desculpe, não entendi. Pode repetir?")
+            return None
+        except sr.RequestError:
+            falar("Erro na conexão. Tente novamente mais tarde.")
+            return None
+
+# Função para verificar o tempo (usando OpenWeatherMap API)
+def obter_clima(cidade):
+    API_KEY = "sua_api_key_aqui"  # Substitua pela sua chave da OpenWeatherMap
+    url = f"http://api.openweathermap.org/data/2.5/weather?q={cidade}&appid={API_KEY}&lang=pt_br&units=metric"
+    try:
+        response = requests.get(url)
+        clima = json.loads(response.text)
+        if clima.get("cod") != 200:
+            falar("Não consegui encontrar informações do tempo para essa cidade.")
+            return
+        descricao = clima["weather"][0]["description"]
+        temperatura = clima["main"]["temp"]
+        falar(f"O tempo em {cidade} está {descricao}, com temperatura de {temperatura} graus Celsius.")
+    except Exception as e:
+        falar("Houve um erro ao obter as informações do clima.")
+        print(e)
+
+# Função principal do assistente
+def assistente_virtual():
+    falar("Olá, como posso ajudar você hoje?")
+    lista_compras = []
+
+    while True:
+        comando = ouvir_comando()
+        if comando is None:
+            continue
+
+        # Sair do assistente
+        if "sair" in comando or "encerrar" in comando:
+            falar("Até mais!")
+            break
+
+        # Reproduzir música no YouTube
+        elif "tocar" in comando:
+            musica = comando.replace("tocar", "").strip()
+            falar(f"Tocando {musica} no YouTube.")
+            pywhatkit.playonyt(musica)
+
+        # Verificar as horas
+        elif "horas" in comando or "que horas são" in comando:
+            agora = datetime.datetime.now().strftime("%H:%M")
+            falar(f"Agora são {agora}.")
+
+        # Obter informações do tempo
+        elif "tempo" in comando or "previsão" in comando:
+            falar("De qual cidade você quer saber o tempo?")
+            cidade = ouvir_comando()
+            if cidade:
+                obter_clima(cidade)
+
+        # Adicionar item à lista de compras
+        elif "adicionar na lista" in comando or "comprar" in comando:
+            item = comando.replace("adicionar na lista", "").replace("comprar", "").strip()
+            if item:
+                lista_compras.append(item)
+                falar(f"{item} adicionado à lista de compras.")
+            else:
+                falar("Qual item você deseja adicionar?")
+
+        # Ver lista de compras
+        elif "minha lista" in comando or "lista de compras" in comando:
+            if lista_compras:
+                falar("Sua lista de compras contém: " + ", ".join(lista_compras))
+            else:
+                falar("Sua lista de compras está vazia.")
+
+        # Não reconheceu o comando
+        else:
+            falar("Desculpe, não sei como ajudar com isso.")
+
+# Executar o assistente virtual
+if __name__ == "__main__":
+    try:
+        assistente_virtual()
+    except KeyboardInterrupt:
+        print("Assistente encerrado.")
